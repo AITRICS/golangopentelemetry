@@ -4,14 +4,13 @@ package opentelemetry
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"time"
-
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 )
 
 type DevTelemetry struct{}
@@ -72,6 +71,11 @@ func setupOTelSDK(ctx context.Context) (shutdown func(context.Context) error, er
 	return
 }
 
+func newExporter(ctx context.Context) (trace.SpanExporter, error) {
+	client := otlptracegrpc.NewClient()
+	return otlptracegrpc.New(ctx, client)
+}
+
 func newPropagator() propagation.TextMapPropagator {
 	return propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
@@ -79,17 +83,36 @@ func newPropagator() propagation.TextMapPropagator {
 	)
 }
 
-func newTraceProvider() (*trace.TracerProvider, error) {
-	traceExporter, err := stdouttrace.New(
-		stdouttrace.WithPrettyPrint())
+func newTraceProvider(ctx context.Context) (*trace.TracerProvider, error) {
+	exporter, err := newExporter(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating OTLP trace exporter failed: %w", err)
+	}
+
+	serviceName := os.Getenv("SERVICE_NAME")
+	if serviceName == "" {
+		serviceName = "default_service_name"
+	}
+
+	res, err := resource.New(ctx,
+		resource.WithAttributes(
+			resource.Default(),
+			semconv.ServiceNameKey.String(serviceName),
+		),
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("creating resource failed: %w", err)
 	}
 
 	traceProvider := trace.NewTracerProvider(
-		trace.WithBatcher(traceExporter,
-			// Default is 5s. Set to 1s for demonstrative purposes.
-			trace.WithBatchTimeout(time.Second)),
+		trace.WithBatcher(exporter),
+		trace.WithResource(res),
 	)
+
+	otel.SetTracerProvider(traceProvider)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{}, propagation.Baggage{}))
+
 	return traceProvider, nil
 }
