@@ -1,4 +1,4 @@
-module opentelemetry
+module github.com/aitrics/golangopentelemetry
 
 go 1.21.4
 
