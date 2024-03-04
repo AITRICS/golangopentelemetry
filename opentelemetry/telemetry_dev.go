@@ -4,6 +4,7 @@ package opentelemetry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -11,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	"os"
 )
 
 type DevTelemetry struct{}
@@ -51,7 +53,7 @@ func setupOTelSDK(ctx context.Context) (shutdown func(context.Context) error, er
 	otel.SetTextMapPropagator(prop)
 
 	// Set up trace provider.
-	tracerProvider, err := newTraceProvider()
+	tracerProvider, err := newTraceProvider(ctx)
 	if err != nil {
 		handleErr(err)
 		return
@@ -59,15 +61,11 @@ func setupOTelSDK(ctx context.Context) (shutdown func(context.Context) error, er
 	shutdownFuncs = append(shutdownFuncs, tracerProvider.Shutdown)
 	otel.SetTracerProvider(tracerProvider)
 
-	shutdownFuncs = append(shutdownFuncs, meterProvider.Shutdown)
-	otel.SetMeterProvider(meterProvider)
-
 	return
 }
 
 func newExporter(ctx context.Context) (trace.SpanExporter, error) {
-	client := otlptracegrpc.NewClient()
-	return otlptracegrpc.New(ctx, client)
+	return otlptracegrpc.New(ctx)
 }
 
 func newPropagator() propagation.TextMapPropagator {
@@ -90,7 +88,6 @@ func newTraceProvider(ctx context.Context) (*trace.TracerProvider, error) {
 
 	res, err := resource.New(ctx,
 		resource.WithAttributes(
-			resource.Default(),
 			semconv.ServiceNameKey.String(serviceName),
 		),
 	)
