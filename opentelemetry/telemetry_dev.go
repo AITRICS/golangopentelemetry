@@ -3,13 +3,14 @@ package opentelemetry
 import (
 	"context"
 	"fmt"
+	"os"
+
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
-	"os"
 )
 
 type DevTelemetry struct{}
@@ -27,7 +28,10 @@ func (d *DevTelemetry) Setup(ctx context.Context) (func(context.Context) error, 
 	otel.SetTracerProvider(tracerProvider)
 
 	shutdown := func(ctx context.Context) error {
-		return tracerProvider.Shutdown(ctx)
+		if err := tracerProvider.Shutdown(ctx); err != nil {
+			return fmt.Errorf("tracerProvider shutdown failed: %w", err) // 에러 래핑 추가
+		}
+		return nil
 	}
 
 	return shutdown, nil
