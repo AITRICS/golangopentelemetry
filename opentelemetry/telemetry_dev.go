@@ -1,3 +1,4 @@
+//go:build dev
 package opentelemetry
 
 import (
@@ -14,6 +15,10 @@ import (
 )
 
 type DevTelemetry struct{}
+
+func NewTelemetryProvider() TelemetryProvider {
+	return &DevTelemetry{}
+}
 
 func (d *DevTelemetry) Setup(ctx context.Context) (func(context.Context) error, error) {
 	fmt.Println("Setting up telemetry for DEV environment")
