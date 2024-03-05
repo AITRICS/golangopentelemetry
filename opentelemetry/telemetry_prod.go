@@ -9,5 +9,5 @@ import (
 type ProdTelemetry struct{}
 
 func (p *ProdTelemetry) Setup(_ context.Context) (func(context.Context) error, error) {
-	return func(context.Context) error { return nil }, nil
+	return func(_ context.Context) error { return temp }, nil
 }
