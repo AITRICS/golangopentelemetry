@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -13,26 +14,39 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 )
 
+var (
+	once sync.Once
+)
+
 func Setup(ctx context.Context) (func(context.Context) error, error) {
-	fmt.Println("Setting up telemetry for DEV environment")
+	var shutdown func(context.Context) error
+	var err error
 
-	prop := newPropagator()
-	otel.SetTextMapPropagator(prop)
+	once.Do(func() {
+		fmt.Println("Setting up telemetry for DEV environment")
 
-	tracerProvider, err := newTraceProvider(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("setup OpenTelemetry SDK failed: %w", err)
-	}
-	otel.SetTracerProvider(tracerProvider)
+		prop := newPropagator()
+		otel.SetTextMapPropagator(prop)
 
-	shutdown := func(ctx context.Context) error {
-		if err := tracerProvider.Shutdown(ctx); err != nil {
-			return fmt.Errorf("tracerProvider shutdown failed: %w", err)
+		tracerProvider, innerErr := newTraceProvider(ctx)
+		if innerErr != nil {
+			err = fmt.Errorf("setup OpenTelemetry SDK failed: %w", innerErr)
+			return
 		}
-		return nil
-	}
-	fmt.Println("Telemetry setup completed....")
+		otel.SetTracerProvider(tracerProvider)
 
+		shutdown = func(ctx context.Context) error {
+			if innerErr := tracerProvider.Shutdown(ctx); innerErr != nil {
+				return fmt.Errorf("tracerProvider shutdown failed: %w", innerErr)
+			}
+			return nil
+		}
+		fmt.Println("Telemetry setup completed....")
+	})
+
+	if err != nil {
+		return nil, err
+	}
 	return shutdown, nil
 }
 
@@ -40,6 +54,15 @@ func Shutdown(shutdown func(context.Context) error, ctx context.Context) {
 	if shutdownErr := shutdown(ctx); shutdownErr != nil {
 		fmt.Printf("Error during OpenTelemetry shutdown: %v\n", shutdownErr)
 	}
+}
+
+// GetTracer You must use it after calling the Setup() function.
+func GetTracer(tracerName string) trace.Tracer {
+	if tracerName == "" {
+		tracerName = "default_tracer"
+	}
+
+	return otel.Tracer(tracerName)
 }
 
 func newPropagator() propagation.TextMapPropagator {
