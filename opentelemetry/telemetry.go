@@ -31,6 +31,7 @@ func Setup(ctx context.Context) (func(context.Context) error, error) {
 		}
 		return nil
 	}
+	fmt.Println("Telemetry setup completed....")
 
 	return shutdown, nil
 }
