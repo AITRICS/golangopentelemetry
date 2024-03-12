@@ -10,8 +10,9 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
-	"go.opentelemetry.io/otel/sdk/trace"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -50,7 +51,7 @@ func Setup(ctx context.Context) (func(context.Context) error, error) {
 	return shutdown, nil
 }
 
-func Shutdown(shutdown func(context.Context) error, ctx context.Context) {
+func Shutdown(ctx context.Context, shutdown func(context.Context) error) {
 	if shutdownErr := shutdown(ctx); shutdownErr != nil {
 		fmt.Printf("Error during OpenTelemetry shutdown: %v\n", shutdownErr)
 	}
@@ -72,7 +73,7 @@ func newPropagator() propagation.TextMapPropagator {
 	)
 }
 
-func newTraceProvider(ctx context.Context) (*trace.TracerProvider, error) {
+func newTraceProvider(ctx context.Context) (*sdktrace.TracerProvider, error) {
 	exporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithInsecure())
 	if err != nil {
 		return nil, fmt.Errorf("creating OTLP trace exporter failed: %w", err)
@@ -92,9 +93,9 @@ func newTraceProvider(ctx context.Context) (*trace.TracerProvider, error) {
 		return nil, fmt.Errorf("creating resource failed: %w", err)
 	}
 
-	traceProvider := trace.NewTracerProvider(
-		trace.WithBatcher(exporter),
-		trace.WithResource(res),
+	traceProvider := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(res),
 	)
 
 	return traceProvider, nil
