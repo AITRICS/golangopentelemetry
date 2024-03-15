@@ -100,3 +100,8 @@ func newTraceProvider(ctx context.Context) (*sdktrace.TracerProvider, error) {
 
 	return traceProvider, nil
 }
+
+// GetTracerProvider returns the registered global trace provider. Set this as a global method to use when setting up the GORM
+func GetTracerProvider() trace.TracerProvider {
+	return otel.GetTracerProvider()
+}
